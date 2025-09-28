@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import GUI from "lil-gui";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { mix } from "three/src/nodes/TSL.js";
 import { randInt } from "three/src/math/MathUtils.js";
 
 /**
@@ -26,6 +27,9 @@ parameters.branches = 3;
 parameters.radius = 5;
 parameters.spin = 1;
 parameters.randomness = 0.2;
+parameters.randomnessPow = 3;
+parameters.insideColor = "#ff6030";
+parameters.outsideColor = "#1b3984";
 
 let geometry = null;
 let material = null;
@@ -39,32 +43,63 @@ const generateGalaxy = () => {
   }
 
   geometry = new THREE.BufferGeometry();
+  
   const position = new Float32Array(parameters.count * 3);
+  const colors = new Float32Array(parameters.count * 3);
+
+
+  const colorInside = new THREE.Color(parameters.insideColor);
+  const colorOutside = new THREE.Color(parameters.outsideColor);
+
+  colorInside.lerp(colorOutside,0.5)
 
   for (let i = 0; i < parameters.count; i++) {
     const i3 = i * 3;
 
     const radius = Math.random() * parameters.radius;
     const spinAngle = radius * parameters.spin;
+    console.log(radius)
 
-    const branchAngle =((i % parameters.branches) / parameters.branches) * Math.PI * 2;
-    const randomX = (Math.random()-0.5) * parameters.randomness;
-    const randomY = Math.random() * parameters.randomness;
-    const randomZ = Math.random() * parameters.randomness;
-      
+    const branchAngle =
+      ((i % parameters.branches) / parameters.branches) * Math.PI * 2;
+    const randomX =
+      Math.pow(Math.random(), parameters.randomnessPow) *
+      (Math.random() < 5 ? 1 : -1) * parameters.randomness * radius;
+    const randomY =
+      Math.pow(Math.random(), parameters.randomnessPow) *
+      (Math.random() < 5 ? 1 : -1) *
+      parameters.randomness *
+      radius;
+    const randomZ =
+      Math.pow(Math.random(), parameters.randomnessPow) *
+      (Math.random() < 5 ? 1 : -1) *
+      parameters.randomness *
+      radius;
 
     position[i3] = Math.cos(branchAngle + spinAngle) * radius + randomX;
     position[i3 + 1] = 0 + randomY;
     position[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + randomZ;
+
+
+    // Color
+    const mixedColor = colorInside.clone()
+
+    mixedColor.lerp(colorOutside,radius)
+    
+       colors[i3 ] = mixedColor.r;
+       colors[i3 + 1] = mixedColor.g;
+       colors[i3 + 2] = mixedColor.b;
   }
 
   geometry.setAttribute("position", new THREE.BufferAttribute(position, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
   material = new THREE.PointsMaterial({
     size: parameters.size,
     sizeAttenuation: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
+    vertexColors:true
   });
 
   points = new THREE.Points(geometry, material);
@@ -113,6 +148,18 @@ gui
   .max(2)
   .step(0.001)
   .onFinishChange(generateGalaxy);
+
+gui
+  .add(parameters, "randomnessPow")
+  .min(1)
+  .max(10)
+  .step(0.001)
+  .onFinishChange(generateGalaxy);
+
+gui.addColor(parameters, "insideColor").onFinishChange(generateGalaxy);
+
+
+gui.addColor(parameters, "outsideColor").onFinishChange(generateGalaxy);
 
 /**
  * Test cube
@@ -183,7 +230,7 @@ const tick = () => {
 
   // Update controls
   controls.update();
-  points.rotation.y = elapsedTime *0.3 // Render
+  points.rotation.y = elapsedTime * 0.3; // Render
   renderer.render(scene, camera);
 
   // Call tick again on the next frame
